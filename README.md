@@ -1,6 +1,6 @@
 # Fixeck
 
-Aplicación web de control horario: los empleados fichan la entrada y la salida de su jornada, ven el tiempo trabajado en tiempo real y consultan su historial.
+Aplicación web de control horario: los empleados fichan la entrada, las pausas y la salida de su jornada, ven el tiempo trabajado en tiempo real y consultan su historial.
 
 El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (el gesto de marcar algo como hecho). La mascota es un gallo, el reloj más antiguo que existe.
 
@@ -15,8 +15,8 @@ El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (e
 ## Funcionalidades
 
 - **Acceso**: registro e inicio de sesión con correo y contraseña o con Google, y recuperación de contraseña por correo.
-- **Panel**: estado de la jornada (trabajando o fuera de jornada), un único botón para fichar entrada o salida y un contador en tiempo real.
-- **Historial**: las jornadas agrupadas por día, con sus horas, su duración y el total diario.
+- **Panel**: estado de la jornada (trabajando, en pausa o fuera de jornada), botones para fichar entrada, pausa y salida, y un contador en tiempo real que se detiene durante las pausas.
+- **Historial**: las jornadas agrupadas por día, con sus horas, el tiempo trabajado, el tiempo en pausa y el total diario.
 - **Tiempo real**: si se ficha desde otro dispositivo, el panel y el historial se actualizan solos.
 - **Hora del servidor**: las horas de los fichajes las pone Firebase, no el reloj del dispositivo, y el contador se corrige si ese reloj va mal.
 - **Modo claro y oscuro**, avisos emergentes con sonido y diseño adaptado a móvil y escritorio.
@@ -92,11 +92,22 @@ Cada jornada es un documento en `users/{uid}/shifts`:
 | `startedAt` | fecha | Hora de entrada. La pone el servidor. |
 | `endedAt` | fecha o `null` | Hora de salida; `null` mientras la jornada sigue abierta. |
 
+Cada pausa es un documento en `users/{uid}/breaks`:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `shiftId` | texto | Jornada a la que pertenece. |
+| `startedAt` | fecha | Inicio de la pausa. Lo pone el servidor. |
+| `endedAt` | fecha o `null` | Fin de la pausa; `null` mientras dura. |
+
+El tiempo trabajado no se guarda: se calcula restando las pausas a la duración de la jornada.
+
 Las reglas de `firestore.rules` garantizan que:
 
-- cada empleado solo puede leer y escribir sus propias jornadas;
-- las horas de entrada y de salida son siempre las del servidor, no se pueden inventar;
-- una jornada cerrada no se puede modificar, y ninguna se puede borrar.
+- cada empleado solo puede leer y escribir sus propias jornadas y pausas;
+- todas las horas son siempre las del servidor, no se pueden inventar;
+- una pausa solo se puede crear dentro de una jornada propia que siga abierta;
+- una jornada o una pausa cerrada no se puede modificar, y ninguna se puede borrar.
 
 ## Despliegue
 
