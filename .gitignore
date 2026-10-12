@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.local
+*.log
+.DS_Store
+
+# Caché local de la CLI de Firebase
+.firebase
+
+# Imágenes de referencia usadas para diseñar el logo: no son nuestras, no se publican
+referencia*

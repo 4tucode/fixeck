@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// ===============================================================
+// Modelo de datos que estas reglas dan por hecho
+// ===============================================================
+//
+// Colección: users/{userId}/shifts
+// Id del documento: automático
+// Cada documento es una jornada de trabajo del usuario {userId}.
+// Campos (no se admite ninguno más):
+//   - startedAt: timestamp (obligatorio, no se puede cambiar). Hora de entrada.
+//                La pone el servidor al crear el documento.
+//   - endedAt:   timestamp o null (obligatorio). Hora de salida; null mientras la
+//                jornada sigue abierta. La pone el servidor al cerrarla y, una vez
+//                puesta, el documento ya no se puede modificar.
+//
+// Documento: users/{userId}/private/clock
+// Sirve para medir la diferencia entre el reloj del dispositivo y el del servidor.
+// Campos (no se admite ninguno más):
+//   - syncedAt: timestamp (obligatorio). Siempre la hora del servidor en el momento de escribir.
+//
+// Consultas que hace la app:
+//   - Jornada abierta: where('endedAt', '==', null), limit(1)
+//   - Historial: orderBy('startedAt', 'desc'), limit(60)
+//
+// Todo lo que no aparece aquí queda denegado por defecto.
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funciones de ayuda ----------
+
+    // Hay un usuario con sesión iniciada
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // El usuario con sesión iniciada es el dueño de los datos de la ruta
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Forma válida de una jornada. Se comprueba al crear y al modificar, para que
+    // un documento válido no pueda convertirse después en uno que no lo es
+    function isValidShift(data) {
+      return data.keys().hasAll(['startedAt', 'endedAt']) &&
+             data.keys().hasOnly(['startedAt', 'endedAt']) &&
+             data.startedAt is timestamp &&
+             (data.endedAt == null ||
+               (data.endedAt is timestamp && data.endedAt >= data.startedAt));
+    }
+
+    // Forma válida del documento del reloj: un único campo con la hora del servidor
+    function isValidClockSync(data) {
+      return data.keys().hasAll(['syncedAt']) &&
+             data.keys().hasOnly(['syncedAt']) &&
+             data.syncedAt == request.time;
+    }
+
+    // ---------- Reloj del servidor ----------
+
+    match /users/{userId}/private/clock {
+      allow read: if isOwner(userId);
+
+      // Se puede crear y sobrescribir, pero solo con la hora real del servidor
+      allow create, update: if isOwner(userId) && isValidClockSync(request.resource.data);
+
+      allow delete: if false;
+    }
+
+    // ---------- Jornadas ----------
+
+    match /users/{userId}/shifts/{shiftId} {
+      // Cada empleado solo puede ver sus propias jornadas
+      allow read: if isOwner(userId);
+
+      // Fichar entrada: jornada nueva, abierta, con la hora del servidor.
+      // Exigir request.time impide inventarse una hora de entrada
+      allow create: if isOwner(userId) &&
+                       isValidShift(request.resource.data) &&
+                       request.resource.data.startedAt == request.time &&
+                       request.resource.data.endedAt == null;
+
+      // Fichar salida: solo se puede cerrar una jornada que sigue abierta, con la hora
+      // del servidor y sin tocar la hora de entrada. Una jornada cerrada no se puede editar
+      allow update: if isOwner(userId) &&
+                       isValidShift(request.resource.data) &&
+                       resource.data.endedAt == null &&
+                       request.resource.data.startedAt == resource.data.startedAt &&
+                       request.resource.data.endedAt == request.time;
+
+      // Los fichajes son un registro laboral: no se borran desde la app
+      allow delete: if false;
+    }
+  }
+}

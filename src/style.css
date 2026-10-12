@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* El modo oscuro se activa con la clase "dark" en <html> (ver composables/useTheme.js) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Paleta y tipografías de la marca: generan utilidades como bg-noche, text-cresta o font-display */
+@theme {
+  --color-noche: #111222;      /* Fondo del modo oscuro */
+  --color-panel: #1a1b33;      /* Tarjetas en modo oscuro */
+  --color-crema: #fff8ec;      /* Fondo del modo claro */
+  --color-cresta: #f0312f;     /* Rojo del logo */
+  --color-alba: #fbbf24;       /* Oro claro */
+  --color-alba-mid: #f59e0b;   /* Oro medio */
+  --color-alba-dark: #e8890c;  /* Oro oscuro */
+
+  --font-display: "Fredoka", "Arial Rounded MT Bold", sans-serif;
+  --font-sans: "Nunito", "Arial Rounded MT Bold", sans-serif;
+}
