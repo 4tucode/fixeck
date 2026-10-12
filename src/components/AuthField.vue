@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import { playKeySound } from '@/utils/sounds'
 
-// Campo de formulario de las pantallas de acceso: etiqueta + caja de texto.
+// Campo de formulario: etiqueta + caja de texto. Nació para las pantallas de acceso
+// y lo usan también los formularios de empresa.
 // Si es de contraseña añade el botón del ojo para ver lo que se ha escrito.
 const props = defineProps({
   id: { type: String, required: true },
@@ -11,6 +12,7 @@ const props = defineProps({
   autocomplete: { type: String, default: 'off' },
   placeholder: { type: String, default: '' },
   minlength: { type: Number, default: undefined },
+  maxlength: { type: Number, default: undefined },
 })
 
 // Valor del campo, enlazado con v-model desde la vista que lo usa
@@ -40,6 +42,7 @@ function handleKeydown(event) {
         :type="inputType"
         required
         :minlength="minlength"
+        :maxlength="maxlength"
         :autocomplete="autocomplete"
         :placeholder="placeholder"
         class="h-12 w-full rounded-xl border-2 border-noche/15 bg-white px-4 outline-none placeholder:text-noche/40 focus:border-alba-mid dark:border-white/15 dark:bg-panel dark:placeholder:text-white/40"

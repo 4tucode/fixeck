@@ -1,7 +1,7 @@
 <script setup>
 import FixeckLogo from '@/components/FixeckLogo.vue'
 
-// Cabecera de las pantallas privadas (panel e historial): la marca, que lleva al panel.
+// Cabecera de las pantallas privadas (panel, historial, empresa): la marca, que lleva al panel.
 // A su derecha queda libre el hueco del botón de tema, que es fijo y vive en App.vue.
 </script>
 

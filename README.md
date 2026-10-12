@@ -1,6 +1,6 @@
 # Fixeck
 
-Aplicación web de control horario: los empleados fichan la entrada, las pausas y la salida de su jornada, ven el tiempo trabajado en tiempo real y consultan su historial.
+Aplicación web de control horario: los empleados fichan la entrada, las pausas y la salida de su jornada, ven el tiempo trabajado en tiempo real y consultan su historial. El responsable de una empresa ve en directo qué está haciendo su equipo.
 
 El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (el gesto de marcar algo como hecho). La mascota es un gallo, el reloj más antiguo que existe.
 
@@ -17,6 +17,7 @@ El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (e
 - **Acceso**: registro e inicio de sesión con correo y contraseña o con Google, verificación del correo y recuperación de contraseña.
 - **Panel**: estado de la jornada (trabajando, en pausa o fuera de jornada), botones para fichar entrada, pausa y salida, y un contador en tiempo real que se detiene durante las pausas.
 - **Historial**: las jornadas agrupadas por día, con sus horas, el tiempo trabajado, el tiempo en pausa y el total diario.
+- **Empresa y equipo**: quien crea una empresa es su responsable e invita a su equipo con un enlace. Ve en directo quién está trabajando, en pausa o fuera, y puede consultar el historial de cada persona, sin poder modificarlo.
 - **Tiempo real**: si se ficha desde otro dispositivo, el panel y el historial se actualizan solos.
 - **Hora del servidor**: las horas de los fichajes las pone Firebase, no el reloj del dispositivo, y el contador se corrige si ese reloj va mal.
 - **Modo claro y oscuro**, avisos emergentes con sonido y diseño adaptado a móvil y escritorio.
@@ -74,7 +75,7 @@ Con los emuladores se pueden crear usuarios y fichajes de prueba sin que lleguen
 ```
 src/
 ├── components/     Piezas de interfaz reutilizables (campos, botones, cabecera, logo)
-├── composables/    Lógica con estado de Vue: sesión, jornada en curso, historial, cronómetro, tema
+├── composables/    Lógica con estado de Vue: sesión, jornada en curso, historial, empresa, equipo, tema
 ├── utils/          Funciones sin estado: formato de horas, agrupar jornadas, avisos, sonidos
 ├── views/          Una vista por pantalla
 ├── router/         Rutas y protección de las pantallas privadas
@@ -102,12 +103,25 @@ Cada pausa es un documento en `users/{uid}/breaks`:
 
 El tiempo trabajado no se guarda: se calcula restando las pausas a la duración de la jornada.
 
+Las empresas se guardan aparte:
+
+| Documento | Campos | Descripción |
+| --- | --- | --- |
+| `companies/{id}` | `name`, `ownerId`, `createdAt` | Una empresa. `ownerId` es su responsable. |
+| `companies/{id}/members/{uid}` | `name`, `email`, `joinedAt` | Una persona del equipo. |
+| `users/{uid}` | `companyId` | A qué empresa pertenece el usuario. |
+
+El id de la empresa es largo y aleatorio y hace de invitación: solo puede unirse quien recibe el enlace que lo contiene.
+
 Las reglas de `firestore.rules` garantizan que:
 
-- cada empleado solo puede leer y escribir sus propias jornadas y pausas;
+- cada empleado solo puede escribir sus propias jornadas y pausas, y solo las leen él y el responsable de su empresa;
 - todas las horas son siempre las del servidor, no se pueden inventar;
 - una pausa solo se puede crear dentro de una jornada propia que siga abierta;
-- una jornada o una pausa cerrada no se puede modificar, y ninguna se puede borrar.
+- una jornada o una pausa cerrada no se puede modificar, y ninguna se puede borrar;
+- el responsable ve los fichajes de su equipo pero no puede crearlos ni cambiarlos;
+- nadie puede crear una empresa a nombre de otro, cambiar su responsable ni ver un equipo que no dirige;
+- cada persona pertenece como mucho a una empresa.
 
 ## Despliegue
 

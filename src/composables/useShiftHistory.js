@@ -10,7 +10,8 @@ const MAX_SHIFTS = 60
 const MAX_BREAKS = 300
 
 // Lee las últimas jornadas del empleado y sus pausas, de lo más reciente a lo más antiguo.
-// Recibe el uid del usuario con sesión iniciada y debe llamarse dentro del setup de un componente.
+// Recibe el uid del empleado (el propio usuario, o alguien de su equipo si quien mira es
+// el responsable) y debe llamarse dentro del setup de un componente.
 export function useShiftHistory(uid) {
   // Jornadas: { id, startedAt, endedAt }, con endedAt a null si sigue abierta
   const shifts = shallowRef([])

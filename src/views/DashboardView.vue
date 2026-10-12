@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import StatusPill from '@/components/StatusPill.vue'
 import VerifyEmailBanner from '@/components/VerifyEmailBanner.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useServerNow } from '@/composables/useServerNow'
@@ -10,16 +12,6 @@ import { notifyError, notifySuccess } from '@/utils/notify'
 import { serverNow, syncServerClock } from '@/utils/serverClock'
 import { workedSeconds } from '@/utils/shifts'
 import { formatClock, formatDuration, formatTime, secondsBetween } from '@/utils/time'
-
-// Colores de la etiqueta de estado (fondo y texto de la etiqueta, y su punto) en cada situación
-const STATUS_STYLES = {
-  idle: { pill: 'bg-noche/10 text-noche/70 dark:bg-white/10 dark:text-white/70', dot: 'bg-noche/40 dark:bg-white/40' },
-  working: {
-    pill: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    dot: 'bg-emerald-500 motion-safe:animate-pulse',
-  },
-  onBreak: { pill: 'bg-alba/25 text-amber-800 dark:text-alba', dot: 'bg-alba-mid' },
-}
 
 const router = useRouter()
 const { user, logout } = useAuth()
@@ -45,12 +37,12 @@ const worked = computed(() => (isWorking.value ? workedSeconds(activeShift.value
 // Segundos que dura la pausa en curso
 const breakSeconds = computed(() => (isOnBreak.value ? secondsBetween(openBreak.value.startedAt, now.value) : 0))
 
-// Texto y colores de la etiqueta de estado
+// Texto de la etiqueta de estado y situación que decide sus colores (ver StatusPill)
 const status = computed(() => {
-  if (isLoading.value) return { text: 'Cargando tu jornada…', ...STATUS_STYLES.idle }
-  if (isOnBreak.value) return { text: 'En pausa', ...STATUS_STYLES.onBreak }
-  if (isWorking.value) return { text: 'Trabajando', ...STATUS_STYLES.working }
-  return { text: 'Fuera de jornada', ...STATUS_STYLES.idle }
+  if (isLoading.value) return { text: 'Cargando tu jornada…', state: 'idle' }
+  if (isOnBreak.value) return { text: 'En pausa', state: 'onBreak' }
+  if (isWorking.value) return { text: 'Trabajando', state: 'working' }
+  return { text: 'Fuera de jornada', state: 'idle' }
 })
 
 // true mientras se guarda un fichaje, para no enviar dos seguidos con un doble clic
@@ -80,7 +72,13 @@ function handleClockIn() {
   return save(clockIn, `Entrada fichada a las ${formatTime(serverNow())}. ¡Buena jornada!`)
 }
 
+// true mientras se pregunta al usuario si de verdad quiere fichar la salida.
+// La salida cierra la jornada y no se puede deshacer, así que un toque por error no debe bastar
+const isConfirmingClockOut = ref(false)
+
+// Se ejecuta cuando el usuario confirma en la ventana que quiere fichar la salida
 function handleClockOut() {
+  isConfirmingClockOut.value = false
   return save(clockOut, `Salida fichada. Has trabajado ${formatDuration(worked.value)}.`)
 }
 
@@ -106,14 +104,7 @@ async function handleLogout() {
 
     <section class="flex flex-1 flex-col items-center justify-center py-10 text-center">
       <!-- Estado actual: aria-live hace que los lectores de pantalla anuncien el cambio -->
-      <p
-        class="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-extrabold"
-        :class="status.pill"
-        aria-live="polite"
-      >
-        <span class="size-2.5 rounded-full" :class="status.dot"></span>
-        {{ status.text }}
-      </p>
+      <StatusPill :state="status.state" aria-live="polite">{{ status.text }}</StatusPill>
 
       <!-- Contador de tiempo trabajado: tabular-nums da el mismo ancho a todas las cifras
            para que no "baile". Se atenúa cuando no está avanzando -->
@@ -143,13 +134,13 @@ async function handleLogout() {
           <button type="button" class="boton-principal bg-alba text-noche hover:bg-alba-mid" :disabled="isDisabled" @click="handleEndBreak">
             Reanudar
           </button>
-          <button type="button" class="boton-secundario" :disabled="isDisabled" @click="handleClockOut">
+          <button type="button" class="boton-secundario" :disabled="isDisabled" @click="isConfirmingClockOut = true">
             Fichar salida
           </button>
         </template>
 
         <template v-else>
-          <button type="button" class="boton-principal bg-cresta text-white hover:bg-red-600" :disabled="isDisabled" @click="handleClockOut">
+          <button type="button" class="boton-principal bg-cresta text-white hover:bg-red-600" :disabled="isDisabled" @click="isConfirmingClockOut = true">
             Fichar salida
           </button>
           <button type="button" class="boton-secundario" :disabled="isDisabled" @click="handleStartBreak">
@@ -163,11 +154,24 @@ async function handleLogout() {
       </p>
     </section>
 
+    <!-- Confirmación de la salida: aparece al pulsar "Fichar salida" -->
+    <ConfirmDialog
+      :open="isConfirmingClockOut"
+      title="¿Fichar la salida?"
+      confirm-label="Sí, fichar salida"
+      cancel-label="Seguir en la jornada"
+      @confirm="handleClockOut"
+      @cancel="isConfirmingClockOut = false"
+    >
+      Has trabajado {{ formatDuration(worked) }}. La jornada se cerrará y no se podrá reabrir.
+    </ConfirmDialog>
+
     <!-- Pie: quién ha entrado y accesos secundarios -->
     <footer class="flex flex-col items-center gap-3 text-sm">
       <RouterLink :to="{ name: 'historial' }" class="font-extrabold underline underline-offset-4">
         Ver historial de fichajes
       </RouterLink>
+      <RouterLink :to="{ name: 'empresa' }" class="font-extrabold underline underline-offset-4">Mi empresa</RouterLink>
       <p class="text-noche/60 dark:text-white/60">
         {{ user?.email }} ·
         <button type="button" class="cursor-pointer font-bold underline underline-offset-4" @click="handleLogout">

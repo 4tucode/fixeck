@@ -138,10 +138,32 @@ describe('DashboardView', () => {
       const wrapper = mountView(DashboardView)
 
       await press(wrapper, 'Fichar salida')
+      await press(wrapper, 'Sí, fichar salida')
 
       expect(mocks.clockOut).toHaveBeenCalledOnce()
       expect(mocks.clockIn).not.toHaveBeenCalled()
       expect(notifySuccess).toHaveBeenCalledWith('Salida fichada. Has trabajado 1 h 2 min.')
+    })
+
+    it('antes de fichar la salida pide confirmación', async () => {
+      setShift({ startedAt: NINE })
+      const wrapper = mountView(DashboardView)
+
+      await press(wrapper, 'Fichar salida')
+
+      expect(wrapper.find('[role="alertdialog"]').text()).toContain('Has trabajado 1 h 2 min')
+      expect(mocks.clockOut).not.toHaveBeenCalled()
+    })
+
+    it('si no se confirma, la jornada sigue abierta', async () => {
+      setShift({ startedAt: NINE })
+      const wrapper = mountView(DashboardView)
+
+      await press(wrapper, 'Fichar salida')
+      await press(wrapper, 'Seguir en la jornada')
+
+      expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false)
+      expect(mocks.clockOut).not.toHaveBeenCalled()
     })
 
     it('al pausar guarda la pausa y avisa', async () => {
@@ -198,6 +220,7 @@ describe('DashboardView', () => {
       const wrapper = mountView(DashboardView)
 
       await press(wrapper, 'Fichar salida')
+      await press(wrapper, 'Sí, fichar salida')
 
       expect(mocks.clockOut).toHaveBeenCalledOnce()
       expect(notifySuccess).toHaveBeenCalledWith('Salida fichada. Has trabajado 50 min.')

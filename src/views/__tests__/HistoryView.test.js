@@ -105,7 +105,7 @@ describe('HistoryView', () => {
     setHistory({ isLoading: true })
     const wrapper = mountView(HistoryView)
 
-    expect(wrapper.text()).toContain('Cargando tus fichajes')
+    expect(wrapper.text()).toContain('Cargando los fichajes')
     expect(wrapper.text()).not.toContain('Aún no has fichado')
   })
 

@@ -30,11 +30,33 @@ rules_version = '2';
 // Campos (no se admite ninguno más):
 //   - syncedAt: timestamp (obligatorio). Siempre la hora del servidor en el momento de escribir.
 //
+// Documento: users/{userId}
+// Indica a qué empresa pertenece el usuario. Solo existe si se ha unido a una (o la ha creado).
+// Campos (no se admite ninguno más):
+//   - companyId: string (obligatorio, no se puede cambiar). Id de su empresa.
+//
+// Colección: companies
+// Id del documento: automático. Como es largo y aleatorio, hace de invitación:
+// solo puede unirse a la empresa quien recibe el enlace que lo contiene.
+// Campos (no se admite ninguno más; el documento no se puede modificar):
+//   - name:      string (obligatorio, de 1 a 60 caracteres). Nombre de la empresa.
+//   - ownerId:   string (obligatorio). Uid del responsable: quien la creó.
+//   - createdAt: timestamp (obligatorio). Lo pone el servidor.
+//
+// Colección: companies/{companyId}/members
+// Id del documento: el uid del empleado
+// Cada documento es una persona de la empresa (el responsable también es una de ellas).
+// Campos (no se admite ninguno más; el documento no se puede modificar):
+//   - name:     string (obligatorio, de 1 a 60 caracteres). Nombre con el que aparece en el equipo.
+//   - email:    string (obligatorio). El correo de su cuenta, tomado de la sesión.
+//   - joinedAt: timestamp (obligatorio). Lo pone el servidor.
+//
 // Consultas que hace la app:
 //   - Jornada abierta: where('endedAt', '==', null), limit(1)
 //   - Historial: orderBy('startedAt', 'desc'), limit(60)
 //   - Pausas de la jornada abierta: where('shiftId', '==', id)
 //   - Pausas del historial: orderBy('startedAt', 'desc'), limit(300)
+//   - Equipo de una empresa: orderBy('name')
 //
 // Todo lo que no aparece aquí queda denegado por defecto.
 // ===============================================================
@@ -87,6 +109,87 @@ service cloud.firestore {
              data.syncedAt == request.time;
     }
 
+    // Nombre de una empresa o de una persona: texto de 1 a 60 caracteres
+    function isValidName(name) {
+      return name is string && name.size() > 0 && name.size() <= 60;
+    }
+
+    // El usuario con sesión iniciada es el responsable de esa empresa
+    function isCompanyOwner(companyId) {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    // El usuario con sesión iniciada es el responsable de la empresa a la que pertenece {userId}.
+    // Si {userId} no está en ninguna empresa, su documento no existe y la comprobación falla
+    function isManagerOf(userId) {
+      let companyId = get(/databases/$(database)/documents/users/$(userId)).data.companyId;
+      return isCompanyOwner(companyId);
+    }
+
+    // Tras la escritura en curso, {userId} queda vinculado a esa empresa. Se usa getAfter porque
+    // el vínculo se guarda en dos documentos a la vez (un lote) y cada uno comprueba al otro
+    function isLinkedAfter(userId, companyId) {
+      return getAfter(/databases/$(database)/documents/users/$(userId)).data.companyId == companyId &&
+             existsAfter(/databases/$(database)/documents/companies/$(companyId)/members/$(userId));
+    }
+
+    // ---------- Empresa del usuario ----------
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      // Unirse a una empresa: solo uno mismo, y solo si a la vez queda dado de alta en su equipo.
+      // Al no poder modificarse ni borrarse, cada persona pertenece como mucho a una empresa
+      allow create: if isOwner(userId) &&
+                       request.resource.data.keys().hasAll(['companyId']) &&
+                       request.resource.data.keys().hasOnly(['companyId']) &&
+                       request.resource.data.companyId is string &&
+                       isLinkedAfter(userId, request.resource.data.companyId);
+
+      allow update, delete: if false;
+    }
+
+    // ---------- Empresas ----------
+
+    match /companies/{companyId} {
+      // Se puede leer una empresa concreta (para enseñar su nombre al aceptar una invitación),
+      // pero no listarlas: sin conocer el id no se llega a ninguna
+      allow get: if isAuthenticated();
+
+      // Crear una empresa: quien la crea queda como responsable y, en la misma escritura,
+      // como miembro de su equipo. Así nadie puede ser responsable de dos empresas
+      allow create: if isAuthenticated() &&
+                       request.resource.data.keys().hasAll(['name', 'ownerId', 'createdAt']) &&
+                       request.resource.data.keys().hasOnly(['name', 'ownerId', 'createdAt']) &&
+                       isValidName(request.resource.data.name) &&
+                       request.resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.createdAt == request.time &&
+                       isLinkedAfter(request.auth.uid, companyId);
+
+      allow update, delete: if false;
+
+      // ---------- Equipo ----------
+
+      match /members/{memberId} {
+        // El responsable ve a todo el equipo; cada empleado, solo su propia ficha
+        allow read: if isOwner(memberId) || isCompanyOwner(companyId);
+
+        // Darse de alta en el equipo: solo uno mismo, con su propio correo y la hora del servidor.
+        // La empresa tiene que existir y el usuario debe quedar vinculado a ella
+        allow create: if isOwner(memberId) &&
+                         request.resource.data.keys().hasAll(['name', 'email', 'joinedAt']) &&
+                         request.resource.data.keys().hasOnly(['name', 'email', 'joinedAt']) &&
+                         isValidName(request.resource.data.name) &&
+                         request.resource.data.email == request.auth.token.email &&
+                         request.resource.data.joinedAt == request.time &&
+                         existsAfter(/databases/$(database)/documents/companies/$(companyId)) &&
+                         isLinkedAfter(memberId, companyId);
+
+        allow update, delete: if false;
+      }
+    }
+
     // ---------- Reloj del servidor ----------
 
     match /users/{userId}/private/clock {
@@ -101,8 +204,9 @@ service cloud.firestore {
     // ---------- Jornadas ----------
 
     match /users/{userId}/shifts/{shiftId} {
-      // Cada empleado solo puede ver sus propias jornadas
-      allow read: if isOwner(userId);
+      // Cada empleado ve sus propias jornadas, y el responsable de su empresa también.
+      // El responsable solo puede leer: los fichajes los hace siempre el empleado
+      allow read: if isOwner(userId) || isManagerOf(userId);
 
       // Fichar entrada: jornada nueva, abierta, con la hora del servidor.
       // Exigir request.time impide inventarse una hora de entrada
@@ -126,8 +230,8 @@ service cloud.firestore {
     // ---------- Pausas ----------
 
     match /users/{userId}/breaks/{breakId} {
-      // Cada empleado solo puede ver sus propias pausas
-      allow read: if isOwner(userId);
+      // Igual que las jornadas: las ven el empleado y el responsable de su empresa
+      allow read: if isOwner(userId) || isManagerOf(userId);
 
       // Empezar una pausa: solo dentro de una jornada propia que siga abierta,
       // y con la hora del servidor

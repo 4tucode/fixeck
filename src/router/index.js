@@ -43,12 +43,38 @@ const routes = [
     component: () => import('@/views/HistoryView.vue'),
     meta: { requiresAuth: true },
   },
+
+  // Empresa del usuario: crearla, ver a qué empresa pertenece o, si es el responsable, su equipo
+  {
+    path: '/empresa',
+    name: 'empresa',
+    component: () => import('@/views/CompanyView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Historial de una persona del equipo; solo lo puede ver el responsable (lo deciden las reglas de Firestore)
+  {
+    path: '/empresa/empleado/:uid',
+    name: 'empleado',
+    component: () => import('@/views/MemberHistoryView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Destino del enlace de invitación que el responsable envía a su equipo
+  {
+    path: '/unirse/:companyId',
+    name: 'unirse',
+    component: () => import('@/views/JoinCompanyView.vue'),
+    meta: { requiresAuth: true },
+  },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
 })
+
+// Ruta privada a la que alguien intentó entrar sin sesión. Se recuerda para llevarle allí
+// en cuanto entre: así quien abre un enlace de invitación no lo pierde por tener que iniciar sesión
+let pendingPath = null
 
 // Se ejecuta antes de cada cambio de página para proteger las rutas privadas
 router.beforeEach(async (to) => {
@@ -58,7 +84,17 @@ router.beforeEach(async (to) => {
   const { user } = useAuth()
 
   // Sin sesión no se puede entrar a las rutas marcadas como privadas
-  if (to.meta.requiresAuth && !user.value) return { name: 'login' }
+  if (to.meta.requiresAuth && !user.value) {
+    if (to.name !== 'panel') pendingPath = to.fullPath
+    return { name: 'login' }
+  }
+
+  // Tras entrar, las pantallas de acceso mandan al panel; si había un destino pendiente, se va a él
+  if (to.name === 'panel' && pendingPath) {
+    const path = pendingPath
+    pendingPath = null
+    return path
+  }
 
   // Con la sesión ya iniciada no tiene sentido volver a ver las pantallas de acceso
   if (to.meta.guestOnly && user.value) return { name: 'panel' }

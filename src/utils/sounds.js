@@ -45,6 +45,27 @@ export function playKeySound() {
   playTone({ frequency: 1100, duration: 0.04, type: 'triangle', volume: 0.04 })
 }
 
+// "Pop" de una ventana que aparece: una nota muy corta cuyo tono sube de golpe, como una burbuja
+export function playPopSound() {
+  const context = getAudioContext()
+  if (!context) return
+
+  const oscillator = context.createOscillator()
+  const gain = context.createGain()
+  const start = context.currentTime
+  const duration = 0.09
+
+  // A diferencia de playTone, aquí el tono no es fijo: sube de grave a agudo en un instante
+  oscillator.frequency.setValueAtTime(320, start)
+  oscillator.frequency.exponentialRampToValueAtTime(880, start + duration)
+  gain.gain.setValueAtTime(0.1, start)
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+
+  oscillator.connect(gain).connect(context.destination)
+  oscillator.start(start)
+  oscillator.stop(start + duration)
+}
+
 // Dos notas que suben: algo ha salido bien
 export function playSuccessSound() {
   playTone({ frequency: 660, duration: 0.12 })

@@ -28,7 +28,9 @@ import { serverNow } from '@/utils/serverClock'
 // "Estar trabajando" es tener una jornada con endedAt a null; "estar en pausa" es tener,
 // además, una pausa con endedAt a null. Todas las horas las pone el servidor.
 //
-// Recibe el uid del usuario con sesión iniciada y debe llamarse dentro del setup de un componente.
+// Recibe el uid del empleado y debe llamarse dentro del setup de un componente. Normalmente es el
+// usuario con sesión iniciada; el responsable de una empresa lo usa también, solo para leer,
+// con el uid de cada persona de su equipo.
 export function useShift(uid) {
   const shiftsRef = collection(db, 'users', uid, 'shifts')
   const breaksRef = collection(db, 'users', uid, 'breaks')
