@@ -26,6 +26,13 @@ export const authReady = new Promise((resolve) => {
   })
 })
 
+// Dirección completa de la pantalla de login, para los enlaces de los correos.
+// Firebase solo la acepta si su dominio está entre los autorizados del proyecto
+// (consola de Firebase > Authentication > Configuración > Dominios autorizados)
+function getLoginUrl() {
+  return `${window.location.origin}/login`
+}
+
 export function useAuth() {
   // Entra con una cuenta que ya existe
   function login(email, password) {
@@ -42,9 +49,11 @@ export function useAuth() {
     return signInWithPopup(auth, new GoogleAuthProvider())
   }
 
-  // Envía un correo con un enlace para elegir una contraseña nueva
+  // Envía un correo con un enlace para elegir una contraseña nueva.
+  // El enlace abre una página de Firebase donde se cambia la contraseña; el segundo
+  // parámetro indica a qué dirección debe volver el usuario al terminar: nuestro login
   function sendResetEmail(email) {
-    return sendPasswordResetEmail(auth, email)
+    return sendPasswordResetEmail(auth, email, { url: getLoginUrl() })
   }
 
   // Comprueba que el código del enlace del correo sigue siendo válido.

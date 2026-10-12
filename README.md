@@ -44,7 +44,9 @@ cd fixeck
 npm install
 ```
 
-Copia `.env.example` como `.env` y rellénalo con la configuración de tu proyecto de Firebase (consola de Firebase → Configuración del proyecto → Tus apps). Después:
+Copia `.env.example` como `.env` y rellénalo con la configuración de tu proyecto de Firebase (consola de Firebase → Configuración del proyecto → Tus apps).
+
+Para que el acceso con Google y el correo de recuperación funcionen en local, añade `localhost` a los dominios autorizados del proyecto (Authentication → Configuración → Dominios autorizados). Después:
 
 ```bash
 npm run dev

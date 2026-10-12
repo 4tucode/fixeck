@@ -20,6 +20,10 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 
+// Los correos que envía Firebase (como el de recuperar la contraseña) y la ventana
+// de Google salen en español
+auth.languageCode = 'es'
+
 // Para hacer pruebas sin tocar los usuarios ni los datos reales se pueden usar los emuladores
 // locales de Firebase (npm run emulador) arrancando la app con VITE_USE_EMULATORS=true
 if (import.meta.env.VITE_USE_EMULATORS === 'true') {
