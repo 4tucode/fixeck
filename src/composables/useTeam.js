@@ -14,11 +14,13 @@ export async function getMember(companyId, uid) {
 
 // Da de baja a una persona del equipo. Borra su ficha y el documento que la vincula con la empresa,
 // los dos a la vez. Sus fichajes no se borran: siguen siendo suyos, pero el responsable deja de verlos.
+// Si tenía código de quiosco ("pin"), se retira en la misma escritura para que quede libre.
 // Solo puede hacerlo el responsable, y nunca sobre sí mismo (lo garantizan las reglas de Firestore)
-export function removeMember(companyId, uid) {
+export function removeMember(companyId, uid, pin = '') {
   const batch = writeBatch(db)
   batch.delete(doc(db, 'companies', companyId, 'members', uid))
   batch.delete(doc(db, 'users', uid))
+  if (pin) batch.delete(doc(db, 'companies', companyId, 'pins', pin))
   return batch.commit()
 }
 

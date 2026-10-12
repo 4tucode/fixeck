@@ -22,6 +22,7 @@
   "auth": {
     "providers": {
       "emailPassword": true,
+      "anonymous": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "Fixeck",
         "supportEmail": "4tucode@gmail.com",

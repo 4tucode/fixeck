@@ -15,6 +15,10 @@ vi.mock('@/composables/useCompany', () => ({ useCompany: () => mocks.company }))
 vi.mock('@/components/TeamList.vue', () => ({
   default: { props: ['company'], template: '<div data-test="equipo">{{ company.name }}</div>' },
 }))
+// El código de quiosco del empleado se lee de Firestore; aquí basta con saber que se enseña
+vi.mock('@/components/MyKioskPin.vue', () => ({
+  default: { props: ['companyId', 'uid'], template: '<div data-test="codigo">{{ uid }}</div>' },
+}))
 vi.mock('@/utils/serverClock', () => ({ syncServerClock: vi.fn() }))
 vi.mock('@/utils/notify', () => ({ notifySuccess: vi.fn(), notifyError: vi.fn() }))
 
@@ -81,6 +85,7 @@ describe('CompanyView', () => {
     const wrapper = mountView(CompanyView)
 
     expect(wrapper.text()).toContain('Formas parte del equipo de Panadería El Gallo')
+    expect(wrapper.find('[data-test="codigo"]').text()).toBe('uid-ana')
     expect(wrapper.find('[data-test="equipo"]').exists()).toBe(false)
     expect(wrapper.find('form').exists()).toBe(false)
   })

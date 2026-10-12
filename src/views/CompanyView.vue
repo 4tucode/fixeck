@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import AuthField from '@/components/AuthField.vue'
 import AuthSubmitButton from '@/components/AuthSubmitButton.vue'
+import MyKioskPin from '@/components/MyKioskPin.vue'
 import TeamList from '@/components/TeamList.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useCompany } from '@/composables/useCompany'
@@ -14,11 +15,12 @@ import { syncServerClock } from '@/utils/serverClock'
 //   - responsable:  el enlace de invitación y su equipo, con el estado de cada persona
 //   - empleado:     a qué empresa pertenece
 const { user } = useAuth()
+const uid = user.value.uid
 
 // La lista del equipo calcula tiempos trabajados: se ajusta la hora con la del servidor
-syncServerClock(user.value.uid)
+syncServerClock(uid)
 
-const { company, isManager, isLoading, hasError, createCompany } = useCompany(user.value.uid)
+const { company, isManager, isLoading, hasError, createCompany } = useCompany(uid)
 
 // Campos del formulario de crear empresa. El nombre de la persona se propone a partir
 // de su cuenta de Google, si entró con ella
@@ -63,12 +65,15 @@ async function handleCreate() {
     <TeamList v-else-if="isManager" :company="company" />
 
     <!-- Empleado -->
-    <div v-else-if="company" class="mt-8 rounded-2xl bg-noche/5 p-6 dark:bg-white/5">
-      <p class="font-bold">Formas parte del equipo de {{ company.name }}.</p>
-      <p class="mt-1 text-sm text-noche/70 dark:text-white/70">
-        Tu responsable puede ver tus fichajes y tu historial, pero no modificarlos.
-      </p>
-    </div>
+    <template v-else-if="company">
+      <div class="mt-8 rounded-2xl bg-noche/5 p-6 dark:bg-white/5">
+        <p class="font-bold">Formas parte del equipo de {{ company.name }}.</p>
+        <p class="mt-1 text-sm text-noche/70 dark:text-white/70">
+          Tu responsable puede ver tus fichajes y tu historial, pero no modificarlos.
+        </p>
+      </div>
+      <MyKioskPin :company-id="company.id" :uid="uid" />
+    </template>
 
     <!-- Sin empresa -->
     <template v-else>

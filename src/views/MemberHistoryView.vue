@@ -3,6 +3,7 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import MemberKioskPin from '@/components/MemberKioskPin.vue'
 import ShiftHistoryList from '@/components/ShiftHistoryList.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useCompany } from '@/composables/useCompany'
@@ -38,6 +39,10 @@ watch(company, async (loadedCompany) => {
 // La baja solo se ofrece al responsable, una vez cargada la ficha, y nunca sobre sí mismo
 const canRemove = computed(() => isManager.value && member.value !== null && memberId !== user.value.uid)
 
+// Código de quiosco actual de la persona; lo comunica el bloque que lo gestiona (MemberKioskPin).
+// Hace falta para retirarlo al darla de baja
+const kioskPin = ref('')
+
 // true mientras se pregunta al responsable si de verdad quiere dar de baja a esta persona
 const isConfirmingRemove = ref(false)
 
@@ -45,7 +50,7 @@ const isConfirmingRemove = ref(false)
 async function handleRemove() {
   isConfirmingRemove.value = false
   try {
-    await removeMember(company.value.id, memberId)
+    await removeMember(company.value.id, memberId, kioskPin.value)
     notifySuccess(`${member.value.name} ya no forma parte del equipo.`)
     router.push({ name: 'empresa' })
   } catch {
@@ -63,6 +68,9 @@ async function handleRemove() {
     </RouterLink>
     <h1 class="mt-3 font-display text-3xl font-semibold">{{ member?.name ?? 'Fichajes' }}</h1>
     <p v-if="member" class="mt-1 text-noche/70 dark:text-white/70">{{ member.email }}</p>
+
+    <!-- Código con el que esta persona ficha en el quiosco; solo lo gestiona el responsable -->
+    <MemberKioskPin v-if="isManager && member" :company-id="company.id" :member="member" @change="kioskPin = $event" />
 
     <!-- Si quien mira no es el responsable de esta persona, las reglas de Firestore
          deniegan la lectura y la lista enseña su aviso de error -->

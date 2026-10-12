@@ -67,6 +67,10 @@ const routes = [
     component: () => import('@/views/JoinCompanyView.vue'),
     meta: { requiresAuth: true },
   },
+
+  // Modo quiosco: la pantalla de un dispositivo compartido donde el equipo ficha con su código.
+  // Solo se llega a ella después de que el responsable active el dispositivo desde "Mi empresa"
+  { path: '/quiosco', name: 'quiosco', component: () => import('@/views/KioskView.vue') },
 ]
 
 const router = createRouter({
@@ -84,6 +88,12 @@ router.beforeEach(async (to) => {
   // o se mandaría al login a alguien que sí estaba dentro
   await authReady
   const { user } = useAuth()
+
+  // Un dispositivo en modo quiosco (sesión anónima) solo puede estar en la pantalla del quiosco,
+  // y a esa pantalla no entra nadie más
+  const isKioskDevice = user.value?.isAnonymous ?? false
+  if (isKioskDevice) return to.name === 'quiosco' ? true : { name: 'quiosco' }
+  if (to.name === 'quiosco') return { name: 'panel' }
 
   // Sin sesión no se puede entrar a las rutas marcadas como privadas
   if (to.meta.requiresAuth && !user.value) {

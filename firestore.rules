@@ -60,12 +60,36 @@ rules_version = '2';
 // Campos (no se admite ninguno más):
 //   - code: string (obligatorio, de 20 a 64 caracteres). Largo y aleatorio.
 //
+// Colección: companies/{companyId}/pins
+// Id del documento: el código de 4 cifras con el que un empleado ficha en el quiosco.
+// Al ser el id, no puede haber dos personas con el mismo código en una empresa.
+// Los asigna el responsable. Campos (no se admite ninguno más; el documento no se puede modificar):
+//   - uid:  string (obligatorio). A quién pertenece el código; debe ser alguien del equipo.
+//   - name: string (obligatorio, de 1 a 60 caracteres). Su nombre, para saludarle en el quiosco.
+//
+// Colección: companies/{companyId}/kiosks
+// Id del documento: el uid (anónimo) del dispositivo que hace de quiosco.
+// Un quiosco es una tableta compartida donde el equipo ficha con su código. No tiene una
+// cuenta de persona: entra de forma anónima y solo puede lo que estas reglas le conceden.
+// Campos (no se admite ninguno más; el documento no se puede modificar):
+//   - ticket:    string (obligatorio). Id del pase con el que se activó.
+//   - createdAt: timestamp (obligatorio). Lo pone el servidor.
+//
+// Colección: companies/{companyId}/kioskTickets
+// Id del documento: automático (largo y aleatorio).
+// Pase de un solo uso que crea el responsable para convertir un dispositivo en quiosco.
+// El dispositivo lo gasta (lo borra) en la misma escritura en la que se da de alta.
+// Campos (no se admite ninguno más):
+//   - createdAt: timestamp (obligatorio). Lo pone el servidor.
+//
 // Consultas que hace la app:
 //   - Jornada abierta: where('endedAt', '==', null), limit(1)
 //   - Historial: orderBy('startedAt', 'desc'), limit(60)
 //   - Pausas de la jornada abierta: where('shiftId', '==', id)
 //   - Pausas del historial: orderBy('startedAt', 'desc'), limit(300)
 //   - Equipo de una empresa: orderBy('name')
+//   - Código de quiosco de una persona: where('uid', '==', uid), limit(1)
+//   - Quioscos de una empresa: toda la colección
 //
 // Todo lo que no aparece aquí queda denegado por defecto.
 // ===============================================================
@@ -134,6 +158,23 @@ service cloud.firestore {
     function isManagerOf(userId) {
       let companyId = get(/databases/$(database)/documents/users/$(userId)).data.companyId;
       return isCompanyOwner(companyId);
+    }
+
+    // Quien hace la petición es un quiosco activo de esa empresa
+    function isKiosk(companyId) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/companies/$(companyId)/kiosks/$(request.auth.uid));
+    }
+
+    // Quien hace la petición es un quiosco de la empresa a la que pertenece {userId}
+    function isKioskOf(userId) {
+      let companyId = get(/databases/$(database)/documents/users/$(userId)).data.companyId;
+      return isKiosk(companyId);
+    }
+
+    // Puede fichar por {userId}: él mismo o un quiosco de su empresa (donde se identifica con su código)
+    function canClockFor(userId) {
+      return isOwner(userId) || isKioskOf(userId);
     }
 
     // Igual que isCompanyOwner, pero mirando cómo queda la empresa tras la escritura en curso.
@@ -228,6 +269,69 @@ service cloud.firestore {
                          isUnlinkedAfter(memberId, companyId);
       }
 
+      // ---------- Códigos de quiosco ----------
+
+      match /pins/{pin} {
+        // El responsable ve todos los códigos; cada empleado, solo el suyo
+        allow read: if isCompanyOwner(companyId) || resource.data.uid == request.auth.uid;
+
+        // El quiosco puede comprobar un código concreto, pero no listarlos todos
+        allow get: if isKiosk(companyId);
+
+        // Asignar un código: solo el responsable, de 4 cifras y a alguien del equipo.
+        // Como "create" solo vale para documentos que no existen, un código ocupado no se puede pisar
+        allow create: if isCompanyOwner(companyId) &&
+                         pin.matches('^[0-9]{4}$') &&
+                         request.resource.data.keys().hasAll(['uid', 'name']) &&
+                         request.resource.data.keys().hasOnly(['uid', 'name']) &&
+                         request.resource.data.uid is string &&
+                         isValidName(request.resource.data.name) &&
+                         exists(/databases/$(database)/documents/companies/$(companyId)/members/$(request.resource.data.uid));
+
+        allow update: if false;
+
+        // Retirar un código (al cambiarlo por otro o al dar de baja a la persona)
+        allow delete: if isCompanyOwner(companyId);
+      }
+
+      // ---------- Quioscos ----------
+
+      match /kioskTickets/{ticketId} {
+        // Nadie necesita leer los pases: las reglas comprueban por sí mismas si existen
+        allow read: if false;
+
+        allow create: if isCompanyOwner(companyId) &&
+                         request.resource.data.keys().hasAll(['createdAt']) &&
+                         request.resource.data.keys().hasOnly(['createdAt']) &&
+                         request.resource.data.createdAt == request.time;
+
+        allow update: if false;
+
+        // Lo borra el responsable, o el dispositivo que lo gasta al darse de alta como quiosco
+        allow delete: if isCompanyOwner(companyId) ||
+                         existsAfter(/databases/$(database)/documents/companies/$(companyId)/kiosks/$(request.auth.uid));
+      }
+
+      match /kiosks/{kioskId} {
+        // El responsable ve sus quioscos; cada quiosco, su propia ficha (para saber si sigue activo)
+        allow read: if isCompanyOwner(companyId) || isOwner(kioskId);
+
+        // Darse de alta como quiosco: solo con un pase válido, que se gasta en la misma escritura
+        // (existe antes y deja de existir después). Así un pase no sirve para dos dispositivos
+        allow create: if isOwner(kioskId) &&
+                         request.resource.data.keys().hasAll(['ticket', 'createdAt']) &&
+                         request.resource.data.keys().hasOnly(['ticket', 'createdAt']) &&
+                         request.resource.data.ticket is string &&
+                         request.resource.data.createdAt == request.time &&
+                         exists(/databases/$(database)/documents/companies/$(companyId)/kioskTickets/$(request.resource.data.ticket)) &&
+                         !existsAfter(/databases/$(database)/documents/companies/$(companyId)/kioskTickets/$(request.resource.data.ticket));
+
+        allow update: if false;
+
+        // Lo desactiva el responsable, o el propio dispositivo al salir del modo quiosco
+        allow delete: if isCompanyOwner(companyId) || isOwner(kioskId);
+      }
+
       // ---------- Código de invitación ----------
 
       match /private/invite {
@@ -263,16 +367,21 @@ service cloud.firestore {
       // El responsable solo puede leer: los fichajes los hace siempre el empleado
       allow read: if isOwner(userId) || isManagerOf(userId);
 
+      // El quiosco solo ve la jornada que sigue abierta, que es lo que necesita para saber
+      // si toca fichar entrada o salida. No puede consultar el historial de nadie
+      allow read: if resource.data.endedAt == null && isKioskOf(userId);
+
       // Fichar entrada: jornada nueva, abierta, con la hora del servidor.
-      // Exigir request.time impide inventarse una hora de entrada
-      allow create: if isOwner(userId) &&
+      // Exigir request.time impide inventarse una hora de entrada.
+      // Puede hacerlo el empleado desde su cuenta o un quiosco de su empresa
+      allow create: if canClockFor(userId) &&
                        isValidShift(request.resource.data) &&
                        request.resource.data.startedAt == request.time &&
                        request.resource.data.endedAt == null;
 
       // Fichar salida: solo se puede cerrar una jornada que sigue abierta, con la hora
       // del servidor y sin tocar la hora de entrada. Una jornada cerrada no se puede editar
-      allow update: if isOwner(userId) &&
+      allow update: if canClockFor(userId) &&
                        isValidShift(request.resource.data) &&
                        resource.data.endedAt == null &&
                        request.resource.data.startedAt == resource.data.startedAt &&
@@ -285,12 +394,12 @@ service cloud.firestore {
     // ---------- Pausas ----------
 
     match /users/{userId}/breaks/{breakId} {
-      // Igual que las jornadas: las ven el empleado y el responsable de su empresa
-      allow read: if isOwner(userId) || isManagerOf(userId);
+      // Igual que las jornadas: las ven el empleado y el responsable de su empresa.
+      // El quiosco también, porque las necesita para calcular lo trabajado en la jornada abierta
+      allow read: if isOwner(userId) || isManagerOf(userId) || isKioskOf(userId);
 
-      // Empezar una pausa: solo dentro de una jornada propia que siga abierta,
-      // y con la hora del servidor
-      allow create: if isOwner(userId) &&
+      // Empezar una pausa: solo dentro de una jornada que siga abierta, y con la hora del servidor
+      allow create: if canClockFor(userId) &&
                        isValidBreak(request.resource.data) &&
                        request.resource.data.startedAt == request.time &&
                        request.resource.data.endedAt == null &&
@@ -298,7 +407,7 @@ service cloud.firestore {
 
       // Terminar una pausa: solo una que siga abierta, con la hora del servidor
       // y sin cambiar ni su inicio ni la jornada a la que pertenece
-      allow update: if isOwner(userId) &&
+      allow update: if canClockFor(userId) &&
                        isValidBreak(request.resource.data) &&
                        resource.data.endedAt == null &&
                        request.resource.data.shiftId == resource.data.shiftId &&

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import KioskSection from '@/components/KioskSection.vue'
 import TeamMemberRow from '@/components/TeamMemberRow.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useServerNow } from '@/composables/useServerNow'
@@ -15,6 +16,10 @@ const props = defineProps({
 })
 
 const { user } = useAuth()
+
+// Se guarda el uid al entrar: al convertir el dispositivo en quiosco la sesión se cierra
+// y "user" queda vacío mientras esta pantalla sigue a la vista
+const myUid = user.value.uid
 const { members, isLoading, hasError } = useTeam(props.company.id)
 
 // Hora actual, que cambia cada segundo y hace avanzar el tiempo trabajado de cada fila
@@ -129,9 +134,14 @@ async function copyInviteLink() {
         v-for="member in members"
         :key="member.id"
         :member="member"
-        :is-self="member.id === user.uid"
+        :is-self="member.id === myUid"
         :now="now"
       />
     </ul>
+    <p class="mt-3 text-sm text-noche/60 dark:text-white/60">
+      Pulsa a una persona para ver su historial y darle su código de quiosco.
+    </p>
   </section>
+
+  <KioskSection :company="company" />
 </template>

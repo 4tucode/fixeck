@@ -7,6 +7,7 @@ import {
   reload,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -95,6 +96,12 @@ export function useAuth() {
     return confirmPasswordReset(auth, code, newPassword)
   }
 
+  // Entra sin cuenta de persona. Lo usan los quioscos: un dispositivo compartido no es de nadie,
+  // así que recibe una identidad anónima a la que las reglas de Firestore dan permisos muy limitados
+  function loginAsKiosk() {
+    return signInAnonymously(auth)
+  }
+
   function logout() {
     return signOut(auth)
   }
@@ -110,6 +117,7 @@ export function useAuth() {
     sendResetEmail,
     checkResetCode,
     saveNewPassword,
+    loginAsKiosk,
     logout,
   }
 }

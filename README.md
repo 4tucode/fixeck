@@ -20,6 +20,7 @@ El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (e
 - **Empresa y equipo**: quien crea una empresa es su responsable e invita a su equipo con un enlace, que puede renovar para que el anterior deje de servir. Ve en directo quién está trabajando, en pausa o fuera, consulta el historial de cada persona sin poder modificarlo y puede darla de baja del equipo.
 - **Tiempo real**: si se ficha desde otro dispositivo, el panel y el historial se actualizan solos.
 - **Hora del servidor**: las horas de los fichajes las pone Firebase, no el reloj del dispositivo, y el contador se corrige si ese reloj va mal.
+- **Modo quiosco**: el responsable convierte una tableta o un ordenador en quiosco y el equipo ficha entrada, pausa y salida tecleando un código de 4 cifras, sin correo ni contraseña. El quiosco se puede desactivar a distancia.
 - **Confirmaciones**: fichar la salida, renovar el enlace y dar de baja piden confirmación antes de hacerse.
 - **Modo claro y oscuro**, avisos emergentes con sonido y diseño adaptado a móvil y escritorio.
 
@@ -111,9 +112,18 @@ Las empresas se guardan aparte:
 | `companies/{id}` | `name`, `ownerId`, `createdAt` | Una empresa. `ownerId` es su responsable. |
 | `companies/{id}/members/{uid}` | `name`, `email`, `joinedAt`, `inviteCode` | Una persona del equipo. |
 | `companies/{id}/private/invite` | `code` | Código de invitación vigente. Solo lo lee el responsable. |
+| `companies/{id}/pins/{código}` | `uid`, `name` | A quién pertenece cada código de quiosco. |
+| `companies/{id}/kiosks/{uid}` | `ticket`, `createdAt` | Un dispositivo activado como quiosco. |
+| `companies/{id}/kioskTickets/{id}` | `createdAt` | Pase de un solo uso para activar un quiosco. |
 | `users/{uid}` | `companyId` | A qué empresa pertenece el usuario. |
 
 El enlace de invitación lleva el id de la empresa y el código vigente, largo y aleatorio. Para unirse hay que presentar ese código: la app no puede leerlo, pero las reglas sí lo comprueban. Al renovarlo, los enlaces anteriores dejan de servir. Dar de baja a alguien borra su ficha y su vínculo con la empresa; sus fichajes siguen siendo suyos.
+
+### Cómo funciona el quiosco
+
+Un quiosco es un dispositivo compartido, así que no entra con la cuenta de nadie: usa una sesión anónima de Firebase. Para activarlo, el responsable crea desde su sesión un pase de un solo uso; el dispositivo cierra esa sesión, abre la anónima y se da de alta gastando el pase. A partir de ahí las reglas solo le dejan comprobar un código concreto, ver la jornada abierta de esa persona y fichar por ella con la hora del servidor.
+
+El código identifica a la persona, pero no es una contraseña: solo sirve en un dispositivo que el responsable haya activado. Límite conocido de este MVP: sin un servidor propio no se pueden limitar los intentos fallidos; el quiosco bloquea el teclado tras cinco errores, pero es un freno en el dispositivo, no una garantía.
 
 Las reglas de `firestore.rules` garantizan que:
 
@@ -125,7 +135,10 @@ Las reglas de `firestore.rules` garantizan que:
 - nadie puede crear una empresa a nombre de otro, cambiar su responsable ni ver un equipo que no dirige;
 - solo se entra en un equipo con el código de invitación vigente, que solo el responsable puede leer y renovar;
 - solo el responsable da de baja, nunca a sí mismo, y desde ese momento deja de ver los fichajes de esa persona;
-- cada persona pertenece como mucho a una empresa.
+- cada persona pertenece como mucho a una empresa;
+- un dispositivo solo se convierte en quiosco con un pase del responsable, y cada pase sirve una vez;
+- el quiosco puede fichar por la gente de su empresa, pero no ver su historial, ni el equipo, ni la lista de códigos;
+- los códigos de quiosco los asigna solo el responsable, son de 4 cifras y no se repiten dentro de una empresa.
 
 ## Despliegue
 
