@@ -1,9 +1,11 @@
-import { shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 import {
   GoogleAuthProvider,
   confirmPasswordReset,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -16,21 +18,26 @@ import { auth } from '@/firebase'
 // todos los componentes compartan el mismo estado, igual que en useTheme.js
 const user = shallowRef(null)
 
+// true si el usuario ya ha confirmado que el correo es suyo. Va en una variable aparte porque
+// Firebase actualiza este dato dentro del mismo objeto de usuario y Vue no detectaría el cambio
+const isEmailVerified = ref(false)
+
 // Promesa que se resuelve cuando Firebase termina de comprobar si había una sesión guardada.
 // El router la espera antes de decidir si deja entrar a una ruta privada
 export const authReady = new Promise((resolve) => {
   // Firebase llama a esta función al arrancar y cada vez que alguien entra o sale
   onAuthStateChanged(auth, (firebaseUser) => {
     user.value = firebaseUser
+    isEmailVerified.value = firebaseUser?.emailVerified ?? false
     resolve()
   })
 })
 
-// Dirección completa de la pantalla de login, para los enlaces de los correos.
+// Dirección completa de una pantalla de la app, para los enlaces de los correos.
 // Firebase solo la acepta si su dominio está entre los autorizados del proyecto
 // (consola de Firebase > Authentication > Configuración > Dominios autorizados)
-function getLoginUrl() {
-  return `${window.location.origin}/login`
+function getAppUrl(path) {
+  return `${window.location.origin}${path}`
 }
 
 export function useAuth() {
@@ -39,21 +46,42 @@ export function useAuth() {
     return signInWithEmailAndPassword(auth, email, password)
   }
 
-  // Crea una cuenta nueva; Firebase deja la sesión iniciada al terminar
-  function register(email, password) {
-    return createUserWithEmailAndPassword(auth, email, password)
+  // Crea una cuenta nueva y envía el correo para verificar la dirección.
+  // Firebase deja la sesión iniciada al terminar
+  async function register(email, password) {
+    await createUserWithEmailAndPassword(auth, email, password)
+    try {
+      await sendVerificationEmail()
+    } catch {
+      // Si el correo no sale, la cuenta ya está creada igualmente:
+      // el aviso del panel permite volver a pedirlo
+    }
   }
 
-  // Abre la ventana de Google; si el usuario no tenía cuenta en Fixeck, se crea sola
+  // Abre la ventana de Google; si el usuario no tenía cuenta en Fixeck, se crea sola.
+  // Las cuentas de Google ya llegan con el correo verificado
   function loginWithGoogle() {
     return signInWithPopup(auth, new GoogleAuthProvider())
+  }
+
+  // Envía al usuario con sesión iniciada un correo con un enlace para verificar su dirección.
+  // El enlace abre una página de Firebase y, al terminar, devuelve al panel
+  function sendVerificationEmail() {
+    return sendEmailVerification(auth.currentUser, { url: getAppUrl('/panel') })
+  }
+
+  // Vuelve a preguntar a Firebase si el correo ya está verificado.
+  // Hace falta porque la verificación ocurre en otra pestaña y esta no se entera sola
+  async function refreshEmailVerified() {
+    await reload(auth.currentUser)
+    isEmailVerified.value = auth.currentUser.emailVerified
   }
 
   // Envía un correo con un enlace para elegir una contraseña nueva.
   // El enlace abre una página de Firebase donde se cambia la contraseña; el segundo
   // parámetro indica a qué dirección debe volver el usuario al terminar: nuestro login
   function sendResetEmail(email) {
-    return sendPasswordResetEmail(auth, email, { url: getLoginUrl() })
+    return sendPasswordResetEmail(auth, email, { url: getAppUrl('/login') })
   }
 
   // Comprueba que el código del enlace del correo sigue siendo válido.
@@ -71,5 +99,17 @@ export function useAuth() {
     return signOut(auth)
   }
 
-  return { user, login, register, loginWithGoogle, sendResetEmail, checkResetCode, saveNewPassword, logout }
+  return {
+    user,
+    isEmailVerified,
+    login,
+    register,
+    loginWithGoogle,
+    sendVerificationEmail,
+    refreshEmailVerified,
+    sendResetEmail,
+    checkResetCode,
+    saveNewPassword,
+    logout,
+  }
 }

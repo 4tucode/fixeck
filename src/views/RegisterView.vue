@@ -16,23 +16,24 @@ const { isLoading, run } = useAuthAction()
 const email = ref('')
 const password = ref('')
 
-// Avisa de que la cuenta está lista y lleva al panel
-function enterApp() {
-  notifySuccess('¡Cuenta creada! Te damos la bienvenida a Fixeck.')
+// Enseña el aviso recibido y lleva al panel
+function enterApp(message) {
+  notifySuccess(message)
   router.push({ name: 'panel' })
 }
 
-// Crea la cuenta con el correo y la contraseña del formulario.
-// Firebase deja la sesión iniciada, así que no hace falta pasar por el login
+// Crea la cuenta con el correo y la contraseña del formulario; register envía además
+// el correo de verificación. Firebase deja la sesión iniciada, así que no hace falta pasar por el login
 async function handleSubmit() {
   const ok = await run(() => register(email.value, password.value))
-  if (ok) enterApp()
+  if (ok) enterApp('¡Cuenta creada! Te hemos enviado un correo para verificar tu dirección.')
 }
 
-// Con Google no hay registro aparte: si la cuenta no existía, se crea al entrar
+// Con Google no hay registro aparte: si la cuenta no existía, se crea al entrar,
+// y su correo ya viene verificado
 async function handleGoogleLogin() {
   const ok = await run(loginWithGoogle)
-  if (ok) enterApp()
+  if (ok) enterApp('¡Te damos la bienvenida a Fixeck!')
 }
 </script>
 

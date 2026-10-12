@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
+import VerifyEmailBanner from '@/components/VerifyEmailBanner.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useServerNow } from '@/composables/useServerNow'
 import { useShift } from '@/composables/useShift'
@@ -101,6 +102,7 @@ async function handleLogout() {
 <template>
   <main class="mx-auto flex min-h-screen max-w-md flex-col px-5 pt-5 pb-10">
     <AppHeader />
+    <VerifyEmailBanner />
 
     <section class="flex flex-1 flex-col items-center justify-center py-10 text-center">
       <!-- Estado actual: aria-live hace que los lectores de pantalla anuncien el cambio -->

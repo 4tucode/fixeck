@@ -23,6 +23,8 @@ vi.mock('@/composables/useAuth', () => ({
 // useShift devuelve el estado que prepara cada test en mocks.shift
 vi.mock('@/composables/useShift', () => ({ useShift: () => mocks.shift }))
 // El reloj del servidor se sustituye por el del dispositivo (que en los tests es el reloj falso)
+// El aviso de verificar el correo tiene sus propios tests; aquí se sustituye por un hueco vacío
+vi.mock('@/components/VerifyEmailBanner.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/utils/serverClock', () => ({ syncServerClock: vi.fn(), serverNow: () => new Date() }))
 vi.mock('@/utils/notify', () => ({ notifySuccess: vi.fn(), notifyError: vi.fn() }))
 

@@ -13,6 +13,8 @@ vi.mock('@/composables/useAuth', () => ({
   useAuth: () => ({ user: { value: { uid: 'uid-ana', email: 'ana@fixeck.test' } } }),
 }))
 vi.mock('@/composables/useShiftHistory', () => ({ useShiftHistory: () => mocks.history }))
+// El aviso de verificar el correo tiene sus propios tests; aquí se sustituye por un hueco vacío
+vi.mock('@/components/VerifyEmailBanner.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/utils/serverClock', () => ({ syncServerClock: vi.fn(), serverNow: () => NOW }))
 
 // Prepara lo que devolverá el historial: las jornadas, sus pausas y los estados

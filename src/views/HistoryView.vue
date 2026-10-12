@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
+import VerifyEmailBanner from '@/components/VerifyEmailBanner.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useShiftHistory } from '@/composables/useShiftHistory'
 import { serverNow, syncServerClock } from '@/utils/serverClock'
@@ -24,6 +25,7 @@ const days = computed(() => groupShiftsByDay(shifts.value, breaks.value, serverN
 <template>
   <main class="mx-auto min-h-screen max-w-md px-5 pt-5 pb-16">
     <AppHeader />
+    <VerifyEmailBanner />
 
     <RouterLink :to="{ name: 'panel' }" class="mt-8 inline-block text-sm font-extrabold underline underline-offset-4">
       ← Volver al panel

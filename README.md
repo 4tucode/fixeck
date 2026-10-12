@@ -14,7 +14,7 @@ El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (e
 
 ## Funcionalidades
 
-- **Acceso**: registro e inicio de sesión con correo y contraseña o con Google, y recuperación de contraseña por correo.
+- **Acceso**: registro e inicio de sesión con correo y contraseña o con Google, verificación del correo y recuperación de contraseña.
 - **Panel**: estado de la jornada (trabajando, en pausa o fuera de jornada), botones para fichar entrada, pausa y salida, y un contador en tiempo real que se detiene durante las pausas.
 - **Historial**: las jornadas agrupadas por día, con sus horas, el tiempo trabajado, el tiempo en pausa y el total diario.
 - **Tiempo real**: si se ficha desde otro dispositivo, el panel y el historial se actualizan solos.
