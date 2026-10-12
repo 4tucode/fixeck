@@ -44,7 +44,7 @@ const palette = [
   <main class="mx-auto max-w-3xl px-5 pt-20 pb-24">
     <!-- Logo principal: sigue el tema actual de la página -->
     <section class="flex flex-col items-center">
-      <FixeckLogo class="logo-flotante h-[min(48vh,380px)] w-auto" />
+      <FixeckLogo animated class="h-[min(48vh,380px)] w-auto" />
       <p class="mt-3 font-display text-7xl leading-none font-semibold tracking-tight">fixeck</p>
     </section>
 
@@ -164,23 +164,6 @@ const palette = [
 </template>
 
 <style scoped>
-/* El logo principal flota suavemente; se respeta a quien prefiere no ver animaciones */
-@media (prefers-reduced-motion: no-preference) {
-  .logo-flotante {
-    animation: flotar 3.5s ease-in-out infinite;
-  }
-}
-
-@keyframes flotar {
-  0%,
-  100% {
-    transform: translateY(-5px);
-  }
-  50% {
-    transform: translateY(5px);
-  }
-}
-
 /* Estilos del texto del manual: se definen aquí una sola vez en lugar de
    repetir las mismas clases en cada título, párrafo y lista */
 .manual {

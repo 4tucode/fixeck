@@ -5,8 +5,10 @@ import AuthField from '@/components/AuthField.vue'
 import AuthLayout from '@/components/AuthLayout.vue'
 import AuthSubmitButton from '@/components/AuthSubmitButton.vue'
 import GoogleButton from '@/components/GoogleButton.vue'
+import LiveClock from '@/components/LiveClock.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useAuthAction } from '@/composables/useAuthAction'
+import { useServerNow } from '@/composables/useServerNow'
 import { notifySuccess } from '@/utils/notify'
 
 const router = useRouter()
@@ -16,9 +18,12 @@ const { isLoading, run } = useAuthAction()
 const email = ref('')
 const password = ref('')
 
+// Hora actual, que cambia cada segundo: mueve el reloj de la pantalla y decide el saludo
+const { now } = useServerNow()
+
 // Saludo según la hora del día, para que la pantalla resulte más cercana
 const greeting = computed(() => {
-  const hour = new Date().getHours()
+  const hour = now.value.getHours()
   if (hour >= 6 && hour < 13) return '¡Buenos días!'
   if (hour >= 13 && hour < 21) return '¡Buenas tardes!'
   return '¡Buenas noches!'
@@ -44,6 +49,10 @@ async function handleGoogleLogin() {
 
 <template>
   <AuthLayout :title="greeting" subtitle="Entra para fichar tu jornada.">
+    <template #hero>
+      <LiveClock :now="now" />
+    </template>
+
     <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
       <AuthField
         id="email"

@@ -16,6 +16,8 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/composables/useAuth', () => ({
   useAuth: () => ({ login: mocks.login, loginWithGoogle: mocks.loginWithGoogle }),
 }))
+// El reloj del servidor se sustituye por el del dispositivo, para no conectar con Firebase
+vi.mock('@/utils/serverClock', () => ({ serverNow: () => new Date() }))
 vi.mock('@/utils/notify', () => ({ notifySuccess: vi.fn(), notifyError: vi.fn() }))
 
 // Monta el login y rellena el formulario con los datos indicados
@@ -28,6 +30,25 @@ async function mountAndFill(email, password) {
 
 describe('LoginView', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('muestra la hora actual y saluda según el momento del día', () => {
+    // Reloj falso para fijar la hora: las 08:05:09 de un lunes
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 12, 8, 5, 9))
+
+    const morning = mountView(LoginView)
+    expect(morning.find('[role="timer"]').text()).toContain('08:05')
+    expect(morning.text()).toContain('Lunes, 12 de octubre'.toLowerCase())
+    expect(morning.find('h1').text()).toBe('¡Buenos días!')
+
+    vi.setSystemTime(new Date(2026, 9, 12, 17, 30))
+    expect(mountView(LoginView).find('h1').text()).toBe('¡Buenas tardes!')
+
+    vi.setSystemTime(new Date(2026, 9, 12, 23, 30))
+    expect(mountView(LoginView).find('h1').text()).toBe('¡Buenas noches!')
+
+    vi.useRealTimers()
+  })
 
   it('con datos correctos entra, avisa y lleva al panel', async () => {
     mocks.login.mockResolvedValue()

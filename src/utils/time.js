@@ -38,6 +38,11 @@ function isSameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
+// Fecha escrita con el nombre del día: "lunes, 5 de octubre"
+export function formatLongDate(date) {
+  return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 // Nombre de un día para los títulos del historial: "Hoy", "Ayer" o "lunes, 5 de octubre".
 // Recibe también la fecha actual para poder decidir qué es hoy y qué es ayer
 export function formatDay(date, today) {
@@ -47,5 +52,5 @@ export function formatDay(date, today) {
   yesterday.setDate(today.getDate() - 1)
   if (isSameDay(date, yesterday)) return 'Ayer'
 
-  return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+  return formatLongDate(date)
 }
