@@ -58,9 +58,11 @@ const routes = [
     component: () => import('@/views/MemberHistoryView.vue'),
     meta: { requiresAuth: true },
   },
-  // Destino del enlace de invitación que el responsable envía a su equipo
+  // Destino del enlace de invitación que el responsable envía a su equipo: lleva el id de la empresa
+  // y el código de invitación. El código es opcional en la ruta para que un enlace antiguo o
+  // incompleto llegue igualmente a la pantalla, que es la que explica que ya no es válido
   {
-    path: '/unirse/:companyId',
+    path: '/unirse/:companyId/:inviteCode?',
     name: 'unirse',
     component: () => import('@/views/JoinCompanyView.vue'),
     meta: { requiresAuth: true },

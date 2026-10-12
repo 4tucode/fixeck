@@ -32,12 +32,12 @@ rules_version = '2';
 //
 // Documento: users/{userId}
 // Indica a qué empresa pertenece el usuario. Solo existe si se ha unido a una (o la ha creado).
+// Lo borra el responsable al dar de baja a esa persona.
 // Campos (no se admite ninguno más):
 //   - companyId: string (obligatorio, no se puede cambiar). Id de su empresa.
 //
 // Colección: companies
-// Id del documento: automático. Como es largo y aleatorio, hace de invitación:
-// solo puede unirse a la empresa quien recibe el enlace que lo contiene.
+// Id del documento: automático.
 // Campos (no se admite ninguno más; el documento no se puede modificar):
 //   - name:      string (obligatorio, de 1 a 60 caracteres). Nombre de la empresa.
 //   - ownerId:   string (obligatorio). Uid del responsable: quien la creó.
@@ -46,10 +46,19 @@ rules_version = '2';
 // Colección: companies/{companyId}/members
 // Id del documento: el uid del empleado
 // Cada documento es una persona de la empresa (el responsable también es una de ellas).
+// Lo borra el responsable al dar de baja a esa persona.
 // Campos (no se admite ninguno más; el documento no se puede modificar):
-//   - name:     string (obligatorio, de 1 a 60 caracteres). Nombre con el que aparece en el equipo.
-//   - email:    string (obligatorio). El correo de su cuenta, tomado de la sesión.
-//   - joinedAt: timestamp (obligatorio). Lo pone el servidor.
+//   - name:       string (obligatorio, de 1 a 60 caracteres). Nombre con el que aparece en el equipo.
+//   - email:      string (obligatorio). El correo de su cuenta, tomado de la sesión.
+//   - joinedAt:   timestamp (obligatorio). Lo pone el servidor.
+//   - inviteCode: string (obligatorio). El código de invitación con el que se unió;
+//                 al crear el documento debe coincidir con el vigente.
+//
+// Documento: companies/{companyId}/private/invite
+// Código de invitación vigente de la empresa. Solo lo lee y lo cambia el responsable;
+// al cambiarlo, los enlaces de invitación anteriores dejan de servir.
+// Campos (no se admite ninguno más):
+//   - code: string (obligatorio, de 20 a 64 caracteres). Largo y aleatorio.
 //
 // Consultas que hace la app:
 //   - Jornada abierta: where('endedAt', '==', null), limit(1)
@@ -127,6 +136,20 @@ service cloud.firestore {
       return isCompanyOwner(companyId);
     }
 
+    // Igual que isCompanyOwner, pero mirando cómo queda la empresa tras la escritura en curso.
+    // Hace falta al crear la empresa, cuando su documento todavía no existe
+    function isCompanyOwnerAfter(companyId) {
+      return isAuthenticated() &&
+             getAfter(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    // Tras la escritura en curso, {userId} ya no tiene vínculo con esa empresa: ni su documento
+    // de usuario ni su ficha en el equipo. La baja borra los dos a la vez o no borra ninguno
+    function isUnlinkedAfter(userId, companyId) {
+      return !existsAfter(/databases/$(database)/documents/users/$(userId)) &&
+             !existsAfter(/databases/$(database)/documents/companies/$(companyId)/members/$(userId));
+    }
+
     // Tras la escritura en curso, {userId} queda vinculado a esa empresa. Se usa getAfter porque
     // el vínculo se guarda en dos documentos a la vez (un lote) y cada uno comprueba al otro
     function isLinkedAfter(userId, companyId) {
@@ -147,7 +170,13 @@ service cloud.firestore {
                        request.resource.data.companyId is string &&
                        isLinkedAfter(userId, request.resource.data.companyId);
 
-      allow update, delete: if false;
+      allow update: if false;
+
+      // Dar de baja: lo hace el responsable de la empresa de esa persona, nunca sobre sí mismo
+      // (la empresa se quedaría sin responsable), y borrando a la vez su ficha del equipo
+      allow delete: if isManagerOf(userId) &&
+                       request.auth.uid != userId &&
+                       isUnlinkedAfter(userId, resource.data.companyId);
     }
 
     // ---------- Empresas ----------
@@ -176,17 +205,43 @@ service cloud.firestore {
         allow read: if isOwner(memberId) || isCompanyOwner(companyId);
 
         // Darse de alta en el equipo: solo uno mismo, con su propio correo y la hora del servidor.
-        // La empresa tiene que existir y el usuario debe quedar vinculado a ella
+        // La empresa tiene que existir y el usuario debe quedar vinculado a ella.
+        // Además hay que presentar el código de invitación vigente: el cliente no puede leerlo,
+        // pero las reglas sí, así que solo entra quien tiene un enlace que siga siendo válido
         allow create: if isOwner(memberId) &&
-                         request.resource.data.keys().hasAll(['name', 'email', 'joinedAt']) &&
-                         request.resource.data.keys().hasOnly(['name', 'email', 'joinedAt']) &&
+                         request.resource.data.keys().hasAll(['name', 'email', 'joinedAt', 'inviteCode']) &&
+                         request.resource.data.keys().hasOnly(['name', 'email', 'joinedAt', 'inviteCode']) &&
                          isValidName(request.resource.data.name) &&
                          request.resource.data.email == request.auth.token.email &&
                          request.resource.data.joinedAt == request.time &&
                          existsAfter(/databases/$(database)/documents/companies/$(companyId)) &&
+                         request.resource.data.inviteCode ==
+                           getAfter(/databases/$(database)/documents/companies/$(companyId)/private/invite).data.code &&
                          isLinkedAfter(memberId, companyId);
 
-        allow update, delete: if false;
+        allow update: if false;
+
+        // Dar de baja: solo el responsable, nunca a sí mismo, y borrando a la vez
+        // el documento que vincula a esa persona con la empresa
+        allow delete: if isCompanyOwner(companyId) &&
+                         request.auth.uid != memberId &&
+                         isUnlinkedAfter(memberId, companyId);
+      }
+
+      // ---------- Código de invitación ----------
+
+      match /private/invite {
+        allow read: if isCompanyOwner(companyId);
+
+        // Crear el código o renovarlo: solo el responsable
+        allow create, update: if isCompanyOwnerAfter(companyId) &&
+                                 request.resource.data.keys().hasAll(['code']) &&
+                                 request.resource.data.keys().hasOnly(['code']) &&
+                                 request.resource.data.code is string &&
+                                 request.resource.data.code.size() >= 20 &&
+                                 request.resource.data.code.size() <= 64;
+
+        allow delete: if false;
       }
     }
 

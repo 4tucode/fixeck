@@ -13,9 +13,17 @@ import { auth, db } from '@/firebase'
 //     - createdAt: cuándo se creó
 //   companies/{id}/members/{uid}       Una persona del equipo (el responsable también lo es).
 //     - name, email, joinedAt
+//     - inviteCode: código de invitación con el que se unió
+//   companies/{id}/private/invite      Código de invitación vigente (ver useTeam.js).
+//     - code
 //
 // Quien crea la empresa es su responsable y puede ver los fichajes del equipo; los demás
 // se unen con un enlace de invitación. Una persona pertenece como mucho a una empresa.
+
+// Genera un código de invitación nuevo: largo y aleatorio, imposible de adivinar
+export function createInviteCode() {
+  return crypto.randomUUID()
+}
 
 // Lee una empresa por su id. Devuelve { id, name, ownerId } o null si no existe
 export async function getCompany(companyId) {
@@ -56,11 +64,13 @@ export function useCompany(uid) {
 
   // Añade al lote las dos escrituras que vinculan al usuario con una empresa: su ficha en
   // el equipo y su documento de usuario. Las reglas exigen que se guarden a la vez
-  function addMembership(batch, companyId, memberName) {
+  // y que el código de invitación sea el vigente
+  function addMembership(batch, companyId, memberName, inviteCode) {
     batch.set(doc(db, 'companies', companyId, 'members', uid), {
       name: memberName,
       email: auth.currentUser.email,
       joinedAt: serverTimestamp(),
+      inviteCode,
     })
     batch.set(doc(db, 'users', uid), { companyId })
   }
@@ -71,18 +81,23 @@ export function useCompany(uid) {
     // doc() sin id genera uno nuevo sin escribir todavía; hace falta para enlazar los documentos
     const companyRef = doc(collection(db, 'companies'))
 
+    // La empresa nace ya con su primer código de invitación
+    const inviteCode = createInviteCode()
+
     const batch = writeBatch(db)
     batch.set(companyRef, { name: companyName, ownerId: uid, createdAt: serverTimestamp() })
-    addMembership(batch, companyRef.id, memberName)
+    batch.set(doc(companyRef, 'private', 'invite'), { code: inviteCode })
+    addMembership(batch, companyRef.id, memberName, inviteCode)
     await batch.commit()
 
     company.value = { id: companyRef.id, name: companyName, ownerId: uid }
   }
 
-  // Une al usuario al equipo de una empresa que ya existe (la del enlace de invitación)
-  async function joinCompany(companyId, memberName) {
+  // Une al usuario al equipo de una empresa que ya existe, con el código que venía en el enlace
+  // de invitación. Si el responsable ha renovado el enlace, el código ya no vale y Firestore lo rechaza
+  async function joinCompany(companyId, inviteCode, memberName) {
     const batch = writeBatch(db)
-    addMembership(batch, companyId, memberName)
+    addMembership(batch, companyId, memberName, inviteCode)
     await batch.commit()
 
     company.value = await getCompany(companyId)

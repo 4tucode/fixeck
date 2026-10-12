@@ -1,6 +1,7 @@
 import { onUnmounted, ref, shallowRef } from 'vue'
-import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { collection, doc, getDoc, onSnapshot, orderBy, query, setDoc, writeBatch } from 'firebase/firestore'
 import { db } from '@/firebase'
+import { createInviteCode } from '@/composables/useCompany'
 
 // Lee la ficha de una persona del equipo. Devuelve { id, name, email } o null si no existe
 export async function getMember(companyId, uid) {
@@ -9,6 +10,49 @@ export async function getMember(companyId, uid) {
 
   const { name, email } = snapshot.data()
   return { id: snapshot.id, name, email }
+}
+
+// Da de baja a una persona del equipo. Borra su ficha y el documento que la vincula con la empresa,
+// los dos a la vez. Sus fichajes no se borran: siguen siendo suyos, pero el responsable deja de verlos.
+// Solo puede hacerlo el responsable, y nunca sobre sí mismo (lo garantizan las reglas de Firestore)
+export function removeMember(companyId, uid) {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, 'companies', companyId, 'members', uid))
+  batch.delete(doc(db, 'users', uid))
+  return batch.commit()
+}
+
+// Código de invitación de una empresa: el que va en el enlace que el responsable envía a su equipo.
+// Se guarda en companies/{id}/private/invite, que solo el responsable puede leer.
+// Renovarlo deja sin efecto los enlaces enviados hasta ese momento.
+export function useInvite(companyId) {
+  const inviteRef = doc(db, 'companies', companyId, 'private', 'invite')
+
+  // Código vigente; vacío hasta que se carga
+  const inviteCode = ref('')
+
+  // Guarda un código nuevo, que sustituye al anterior
+  async function renewInvite() {
+    const code = createInviteCode()
+    await setDoc(inviteRef, { code })
+    inviteCode.value = code
+  }
+
+  // Lee el código vigente. Las empresas creadas antes de que existieran los códigos
+  // no tienen ninguno, así que en ese caso se crea el primero
+  async function loadInvite() {
+    try {
+      const snapshot = await getDoc(inviteRef)
+      if (snapshot.exists()) inviteCode.value = snapshot.data().code
+      else await renewInvite()
+    } catch {
+      // Sin código no hay enlace que enseñar; la vista lo indica mientras siga vacío
+    }
+  }
+
+  loadInvite()
+
+  return { inviteCode, renewInvite }
 }
 
 // Lista de personas del equipo de una empresa, por orden alfabético.

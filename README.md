@@ -17,9 +17,10 @@ El nombre une **fixar** (en valenciano, fijar o dejar constancia) y **check** (e
 - **Acceso**: registro e inicio de sesión con correo y contraseña o con Google, verificación del correo y recuperación de contraseña.
 - **Panel**: estado de la jornada (trabajando, en pausa o fuera de jornada), botones para fichar entrada, pausa y salida, y un contador en tiempo real que se detiene durante las pausas.
 - **Historial**: las jornadas agrupadas por día, con sus horas, el tiempo trabajado, el tiempo en pausa y el total diario.
-- **Empresa y equipo**: quien crea una empresa es su responsable e invita a su equipo con un enlace. Ve en directo quién está trabajando, en pausa o fuera, y puede consultar el historial de cada persona, sin poder modificarlo.
+- **Empresa y equipo**: quien crea una empresa es su responsable e invita a su equipo con un enlace, que puede renovar para que el anterior deje de servir. Ve en directo quién está trabajando, en pausa o fuera, consulta el historial de cada persona sin poder modificarlo y puede darla de baja del equipo.
 - **Tiempo real**: si se ficha desde otro dispositivo, el panel y el historial se actualizan solos.
 - **Hora del servidor**: las horas de los fichajes las pone Firebase, no el reloj del dispositivo, y el contador se corrige si ese reloj va mal.
+- **Confirmaciones**: fichar la salida, renovar el enlace y dar de baja piden confirmación antes de hacerse.
 - **Modo claro y oscuro**, avisos emergentes con sonido y diseño adaptado a móvil y escritorio.
 
 ## Tecnologías
@@ -108,10 +109,11 @@ Las empresas se guardan aparte:
 | Documento | Campos | Descripción |
 | --- | --- | --- |
 | `companies/{id}` | `name`, `ownerId`, `createdAt` | Una empresa. `ownerId` es su responsable. |
-| `companies/{id}/members/{uid}` | `name`, `email`, `joinedAt` | Una persona del equipo. |
+| `companies/{id}/members/{uid}` | `name`, `email`, `joinedAt`, `inviteCode` | Una persona del equipo. |
+| `companies/{id}/private/invite` | `code` | Código de invitación vigente. Solo lo lee el responsable. |
 | `users/{uid}` | `companyId` | A qué empresa pertenece el usuario. |
 
-El id de la empresa es largo y aleatorio y hace de invitación: solo puede unirse quien recibe el enlace que lo contiene.
+El enlace de invitación lleva el id de la empresa y el código vigente, largo y aleatorio. Para unirse hay que presentar ese código: la app no puede leerlo, pero las reglas sí lo comprueban. Al renovarlo, los enlaces anteriores dejan de servir. Dar de baja a alguien borra su ficha y su vínculo con la empresa; sus fichajes siguen siendo suyos.
 
 Las reglas de `firestore.rules` garantizan que:
 
@@ -121,6 +123,8 @@ Las reglas de `firestore.rules` garantizan que:
 - una jornada o una pausa cerrada no se puede modificar, y ninguna se puede borrar;
 - el responsable ve los fichajes de su equipo pero no puede crearlos ni cambiarlos;
 - nadie puede crear una empresa a nombre de otro, cambiar su responsable ni ver un equipo que no dirige;
+- solo se entra en un equipo con el código de invitación vigente, que solo el responsable puede leer y renovar;
+- solo el responsable da de baja, nunca a sí mismo, y desde ese momento deja de ver los fichajes de esa persona;
 - cada persona pertenece como mucho a una empresa.
 
 ## Despliegue

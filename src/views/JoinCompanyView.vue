@@ -8,7 +8,7 @@ import { useAuth } from '@/composables/useAuth'
 import { getCompany, useCompany } from '@/composables/useCompany'
 import { notifyError, notifySuccess } from '@/utils/notify'
 
-// Pantalla a la que lleva el enlace de invitación (/unirse/<id de la empresa>).
+// Pantalla a la que lleva el enlace de invitación (/unirse/<id de la empresa>/<código>).
 // Enseña a qué empresa se va a unir el usuario y le pide confirmarlo con su nombre.
 const route = useRoute()
 const router = useRouter()
@@ -23,9 +23,12 @@ const invitingCompany = shallowRef(null)
 // true hasta saber si el enlace es válido
 const isCheckingLink = ref(true)
 
-// Busca la empresa del enlace. Si no existe o no se puede leer, se trata como enlace no válido
+// Busca la empresa del enlace. Si no existe, no se puede leer o al enlace le falta
+// el código de invitación, se trata como enlace no válido
 async function loadInvitingCompany() {
-  invitingCompany.value = await getCompany(route.params.companyId).catch(() => null)
+  if (route.params.inviteCode) {
+    invitingCompany.value = await getCompany(route.params.companyId).catch(() => null)
+  }
   isCheckingLink.value = false
 }
 
@@ -41,11 +44,13 @@ const isSaving = ref(false)
 async function handleJoin() {
   isSaving.value = true
   try {
-    await joinCompany(invitingCompany.value.id, memberName.value)
+    await joinCompany(invitingCompany.value.id, route.params.inviteCode, memberName.value)
     notifySuccess(`Ya formas parte de ${invitingCompany.value.name}. ¡Te damos la bienvenida!`)
     router.push({ name: 'panel' })
   } catch {
-    notifyError('No hemos podido unirte al equipo. Inténtalo de nuevo.')
+    // El motivo más habitual es que el responsable haya renovado el enlace. Desde aquí no se puede
+    // comprobar antes, porque el código vigente solo lo conocen el responsable y las reglas de Firestore
+    notifyError('No hemos podido unirte. Puede que el enlace ya no sea válido: pide uno nuevo a tu responsable.')
   } finally {
     isSaving.value = false
   }

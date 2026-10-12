@@ -8,13 +8,14 @@ import { mountView, submitForm } from './helpers'
 // Estado y funciones falsas que sustituyen a Firebase y al router (ver LoginView.test.js)
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
+  params: null,
   getCompany: vi.fn(),
   joinCompany: vi.fn(),
   currentCompany: null,
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { companyId: 'empresa-1' } }),
+  useRoute: () => ({ params: mocks.params }),
   useRouter: () => ({ push: mocks.push }),
 }))
 vi.mock('@/composables/useAuth', () => ({
@@ -44,6 +45,7 @@ describe('JoinCompanyView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.currentCompany = null
+    mocks.params = { companyId: 'empresa-1', inviteCode: 'codigo-vigente' }
     mocks.getCompany.mockResolvedValue(BAKERY)
   })
 
@@ -62,12 +64,20 @@ describe('JoinCompanyView', () => {
     expect(wrapper.find('#memberName').element.value).toBe('Luis Pérez')
     await submitForm(wrapper)
 
-    expect(mocks.joinCompany).toHaveBeenCalledWith('empresa-1', 'Luis Pérez')
+    expect(mocks.joinCompany).toHaveBeenCalledWith('empresa-1', 'codigo-vigente', 'Luis Pérez')
     expect(notifySuccess).toHaveBeenCalledOnce()
     expect(mocks.push).toHaveBeenCalledWith({ name: 'panel' })
   })
 
-  it('si no se puede unir, avisa y se queda en la pantalla', async () => {
+  it('trata como no válido un enlace sin código de invitación', async () => {
+    mocks.params = { companyId: 'empresa-1', inviteCode: '' }
+    const wrapper = await mountJoin()
+
+    expect(wrapper.text()).toContain('no es válido')
+    expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('si no se puede unir (por ejemplo, con un enlace renovado), avisa y se queda en la pantalla', async () => {
     mocks.joinCompany.mockRejectedValue(new Error())
     const wrapper = await mountJoin()
 
